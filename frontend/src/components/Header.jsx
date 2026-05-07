@@ -10,7 +10,6 @@ const publicLinks = [
   { label: "AI qo'llanma", to: "/ai-guide" },
   { label: "Eski usul", to: "/old-method" },
   { label: "Yangi usul", to: "/new-method" },
-  { label: "Kutubxona", to: "/library" },
   { label: "Chatbot", to: "/chatbot" }
 ];
 

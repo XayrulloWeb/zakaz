@@ -8,7 +8,6 @@ import AIGuide from "./pages/AIGuide";
 import OldMethod from "./pages/OldMethod";
 import NewMethod from "./pages/NewMethod";
 import ChatbotPage from "./pages/ChatbotPage";
-import LibraryPage from "./pages/LibraryPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
@@ -47,7 +46,6 @@ function App() {
           <Route path="/ai-guide" element={<AIGuide />} />
           <Route path="/old-method" element={<OldMethod />} />
           <Route path="/new-method" element={<NewMethod />} />
-          <Route path="/library" element={<LibraryPage />} />
           <Route
             path="/chatbot"
             element={
