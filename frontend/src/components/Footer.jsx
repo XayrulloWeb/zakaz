@@ -22,6 +22,9 @@ function Footer() {
             <Link to="/new-method" className="hover:text-indigo-700">
               Yangi o'qituv usuli
             </Link>
+            <Link to="/library" className="hover:text-indigo-700">
+              Kutubxona
+            </Link>
             <Link to="/chatbot" className="hover:text-indigo-700">
               AI Chatbot
             </Link>

@@ -2,16 +2,22 @@
 
 :root {
   font-family: "Inter", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color-scheme: light;
 }
 
 html {
   scroll-behavior: smooth;
 }
 
+html.dark {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
   background: #f8fafc;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 .container-shell {
@@ -28,4 +34,52 @@ body {
 
 .section-subtitle {
   @apply mt-3 max-w-3xl text-slate-600;
+}
+
+html.dark body {
+  background: radial-gradient(circle at top, #1e293b 0%, #0b1220 42%, #020617 100%);
+  color: #e2e8f0;
+}
+
+html.dark .glass-card {
+  @apply border-slate-700/80 bg-slate-900/70 shadow-2xl;
+}
+
+html.dark .section-title {
+  @apply text-slate-100;
+}
+
+html.dark .section-subtitle {
+  @apply text-slate-300;
+}
+
+html.dark .text-slate-900 {
+  color: rgb(241 245 249) !important;
+}
+
+html.dark .text-slate-700 {
+  color: rgb(203 213 225) !important;
+}
+
+html.dark .text-slate-600,
+html.dark .text-slate-500 {
+  color: rgb(148 163 184) !important;
+}
+
+html.dark .bg-slate-50,
+html.dark .bg-slate-100 {
+  background-color: rgb(15 23 42) !important;
+}
+
+html.dark .bg-white,
+html.dark .bg-white\/70,
+html.dark .bg-white\/80,
+html.dark .bg-white\/90 {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+}
+
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-300 {
+  border-color: rgb(51 65 85) !important;
 }

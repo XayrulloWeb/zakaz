@@ -1,6 +1,7 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import multer from "multer";
 import { prisma } from "./config/db.js";
 import authRoutes from "./routes/auth.routes.js";
 import chatRoutes from "./routes/chat.routes.js";
@@ -48,6 +49,35 @@ app.use("/api", chatRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ message: "Route topilmadi." });
+});
+
+app.use((err, _req, res, _next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(413).json({
+        message: "Fayl hajmi juda katta. Maksimal hajm: 5MB."
+      });
+    }
+    return res.status(400).json({
+      message: err.message || "Fayl yuklashda xatolik yuz berdi."
+    });
+  }
+
+  if (err?.message?.includes("Faqat rasm")) {
+    return res.status(400).json({
+      message: err.message
+    });
+  }
+
+  if (err?.message?.includes("CORS")) {
+    return res.status(403).json({
+      message: err.message
+    });
+  }
+
+  return res.status(500).json({
+    message: "Serverda kutilmagan xatolik yuz berdi."
+  });
 });
 
 async function startServer() {

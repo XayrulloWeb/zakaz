@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bot, ImagePlus, Send, User, Trash2 } from "lucide-react";
 import {
   analyzeImage,
@@ -38,6 +38,7 @@ function normalizeAssistantPayload(data) {
 
 function ChatBot() {
   const { showToast } = useToast();
+  const messageObjectUrlsRef = useRef([]);
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState(() => {
     const saved = getRecentChatMessages();
@@ -56,7 +57,12 @@ function ChatBot() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setRecentChatMessages(messages);
+    const storageSafeMessages = messages.map((message) => {
+      if (!message?.imageUrl) return message;
+      const { imageUrl, ...rest } = message;
+      return rest;
+    });
+    setRecentChatMessages(storageSafeMessages);
   }, [messages]);
 
   useEffect(() => {
@@ -68,6 +74,13 @@ function ChatBot() {
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [imageFile]);
+
+  useEffect(() => {
+    return () => {
+      messageObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      messageObjectUrlsRef.current = [];
+    };
+  }, []);
 
   const canSend = useMemo(() => {
     return question.trim().length > 0 && !chatLoading && !imageLoading;
@@ -86,7 +99,19 @@ function ChatBot() {
     ]);
   }
 
+  function createMessageImageUrl(file) {
+    const url = URL.createObjectURL(file);
+    messageObjectUrlsRef.current.push(url);
+    return url;
+  }
+
+  function revokeMessageImageUrls() {
+    messageObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    messageObjectUrlsRef.current = [];
+  }
+
   function clearChat() {
+    revokeMessageImageUrls();
     setMessages(DEFAULT_MESSAGES);
     setRecentChatMessages(DEFAULT_MESSAGES);
     setError("");
@@ -130,7 +155,11 @@ function ChatBot() {
 
     setError("");
     setImageLoading(true);
-    pushMessage("user", `Rasm yuborildi: ${imageFile.name}`);
+    const imageUrl = createMessageImageUrl(imageFile);
+    pushMessage("user", `Rasm yuborildi: ${imageFile.name}`, {
+      imageUrl,
+      fileName: imageFile.name
+    });
 
     try {
       const data = await analyzeImage(imageFile);
@@ -209,7 +238,14 @@ function ChatBot() {
                       </span>
                     ) : null}
                   </div>
-                  {message.text}
+                  {message.text ? <p>{message.text}</p> : null}
+                  {message.imageUrl ? (
+                    <img
+                      src={message.imageUrl}
+                      alt={message.fileName || "Rasm yuborildi"}
+                      className="mt-2 max-h-44 w-full rounded-lg border border-white/20 object-cover"
+                    />
+                  ) : null}
                 </div>
               </div>
             ))

@@ -3,6 +3,24 @@ const TOKEN_KEY = "ai_arch_token";
 const VISITED_KEY = "ai_arch_visited_sections";
 const CHAT_HISTORY_KEY = "ai_arch_recent_messages";
 
+function safeJsonParse(value, fallback) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function authHeaders() {
+  const token = getStoredToken();
+  if (!token) {
+    return {};
+  }
+  return {
+    Authorization: `Bearer ${token}`
+  };
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, options);
   const isJson = response.headers.get("content-type")?.includes("application/json");
@@ -45,14 +63,19 @@ export async function loginUser(payload) {
 
 export async function getMe(token) {
   return request("/api/auth/me", {
-    headers: { Authorization: `Bearer ${token}` }
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
   });
 }
 
 export async function sendChatMessage(question) {
   return request("/api/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders()
+    },
     body: JSON.stringify({ question })
   });
 }
@@ -63,12 +86,20 @@ export async function analyzeImage(file) {
 
   return request("/api/analyze-image", {
     method: "POST",
+    headers: {
+      ...authHeaders()
+    },
     body: formData
   });
 }
 
 export function markSectionVisited(sectionName) {
-  const current = JSON.parse(localStorage.getItem(VISITED_KEY) || "[]");
+  const current = safeJsonParse(localStorage.getItem(VISITED_KEY), []);
+  if (!Array.isArray(current)) {
+    localStorage.setItem(VISITED_KEY, JSON.stringify([sectionName]));
+    return;
+  }
+
   if (!current.includes(sectionName)) {
     current.push(sectionName);
     localStorage.setItem(VISITED_KEY, JSON.stringify(current));
@@ -76,15 +107,16 @@ export function markSectionVisited(sectionName) {
 }
 
 export function getVisitedSections() {
-  return JSON.parse(localStorage.getItem(VISITED_KEY) || "[]");
+  const value = safeJsonParse(localStorage.getItem(VISITED_KEY), []);
+  return Array.isArray(value) ? value : [];
 }
 
 export function setRecentChatMessages(messages) {
-  const clipped = messages.slice(-6);
+  const clipped = Array.isArray(messages) ? messages.slice(-6) : [];
   localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(clipped));
 }
 
 export function getRecentChatMessages() {
-  return JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || "[]");
+  const value = safeJsonParse(localStorage.getItem(CHAT_HISTORY_KEY), []);
+  return Array.isArray(value) ? value : [];
 }
-

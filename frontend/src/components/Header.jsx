@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { Menu, X, GraduationCap, UserCircle2, LayoutDashboard } from "lucide-react";
+import { Menu, X, GraduationCap, UserCircle2, LayoutDashboard, Moon, Sun } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -10,6 +10,7 @@ const publicLinks = [
   { label: "AI qo'llanma", to: "/ai-guide" },
   { label: "Eski usul", to: "/old-method" },
   { label: "Yangi usul", to: "/new-method" },
+  { label: "Kutubxona", to: "/library" },
   { label: "Chatbot", to: "/chatbot" }
 ];
 
@@ -21,7 +22,7 @@ function navClass({ isActive }) {
   }`;
 }
 
-function Header() {
+function Header({ isDark, onToggleTheme }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const { isAuthenticated, user, logout } = useAuth();
   const { showToast } = useToast();
@@ -61,6 +62,16 @@ function Header() {
         </nav>
 
         <div className="hidden items-center gap-2 lg:flex">
+          <button
+            type="button"
+            onClick={onToggleTheme}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+            aria-label={isDark ? "Yorug' rejimga o'tish" : "Qorong'i rejimga o'tish"}
+          >
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {isDark ? "Light" : "Dark"}
+          </button>
+
           {isAuthenticated ? (
             <>
               <span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600">
@@ -109,6 +120,15 @@ function Header() {
             className="border-t border-slate-100 bg-white lg:hidden"
           >
             <div className="container-shell flex flex-col gap-2 py-4">
+              <button
+                type="button"
+                onClick={onToggleTheme}
+                className="mb-1 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
+              >
+                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                {isDark ? "Yorug' rejim" : "Qorong'i rejim"}
+              </button>
+
               {allLinks.map((item) => (
                 <NavLink
                   key={item.to}

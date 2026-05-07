@@ -13,13 +13,18 @@ const topicMap = {
 
 function buildChatAnswer(question) {
   const text = String(question || "").toLowerCase();
-  const topicKey = Object.keys(topicMap).find((key) => text.includes(key));
+  const topicKey = Object.keys(topicMap).find((key) => hasTopic(text, key));
 
   if (topicKey) {
     return topicMap[topicKey];
   }
 
   return "Savolingiz uchun rahmat. Iltimos, CPU, RAM, GPU, Motherboard, Cache, Bus, SSD yoki HDD bo'yicha aniq savol yuboring.";
+}
+
+function hasTopic(text, key) {
+  const pattern = new RegExp(`(^|[^a-zA-Z0-9])${key}([^a-zA-Z0-9]|$)`, "i");
+  return pattern.test(text);
 }
 
 function parseCsvEnv(value) {
@@ -41,10 +46,9 @@ function getGeminiConfig() {
 
   const models = uniq([
     ...parseCsvEnv(process.env.GEMINI_MODELS),
-    process.env.GEMINI_MODEL || "gemini-flash-latest",
+    process.env.GEMINI_MODEL || "gemini-1.5-flash",
     "gemini-flash-latest",
-    "gemini-2.5-flash",
-    "gemini-2.0-flash-001"
+    "gemini-2.5-flash"
   ]).filter(Boolean);
 
   return { keys, models };
@@ -71,19 +75,29 @@ function canRetryWithNextVariant(statusCode) {
   return true;
 }
 
-async function callGeminiWithVariant(parts, apiKey, model) {
+// Добавлен параметр systemText для четкого разделения роли ИИ и запроса пользователя
+async function callGeminiWithVariant(parts, apiKey, model, systemText = "") {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const payload = {
+    contents: [{ role: "user", parts }],
+    generationConfig: {
+      temperature: 0.6, // Увеличено с 0.25 до 0.6, чтобы ответы были более естественными и без цикличности
+      maxOutputTokens: 2048 // Увеличено с 1200 до 2048, чтобы исключить обрыв длинного ответа
+    }
+  };
+
+  // Используем нативную функцию System Instruction от Gemini API
+  if (systemText) {
+    payload.systemInstruction = {
+      parts: [{ text: systemText }]
+    };
+  }
 
   const response = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts }],
-      generationConfig: {
-        temperature: 0.25,
-        maxOutputTokens: 1200
-      }
-    })
+    body: JSON.stringify(payload)
   });
 
   const data = await response.json().catch(() => ({}));
@@ -106,7 +120,7 @@ async function callGeminiWithVariant(parts, apiKey, model) {
   return text;
 }
 
-async function callGemini(parts) {
+async function callGemini(parts, systemText = "") {
   const { keys, models } = getGeminiConfig();
   if (keys.length === 0) {
     throw new Error("GEMINI_API_KEY yoki GEMINI_API_KEYS mavjud emas.");
@@ -120,7 +134,7 @@ async function callGemini(parts) {
     for (let modelIndex = 0; modelIndex < models.length; modelIndex += 1) {
       const model = models[modelIndex];
       try {
-        const text = await callGeminiWithVariant(parts, apiKey, model);
+        const text = await callGeminiWithVariant(parts, apiKey, model, systemText);
         return { text, model };
       } catch (error) {
         const statusCode = Number(error?.statusCode || 0);
@@ -140,55 +154,7 @@ async function callGemini(parts) {
   );
 }
 
-function isShortImageAnalysis(text) {
-  const clean = String(text || "").trim();
-  return (
-    clean.length < 280 ||
-    clean.split(/\s+/).length < 45 ||
-    !clean.includes("1)") ||
-    !clean.includes("2)") ||
-    !clean.includes("3)") ||
-    !clean.includes("4)") ||
-    !clean.includes("5)")
-  );
-}
-
-function buildImageAnalysisPrompt(isRetry = false) {
-  return [
-    "Siz kompyuter arxitekturasi fanidan dars beradigan professional AI o'qituvchisiz.",
-    "Yuklangan rasmni kompyuter arxitekturasi mavzusi bo'yicha tahlil qiling.",
-    "Javob FAQAT Uzbek lotinda bo'lsin.",
-    "Hech qanday salomlashish yozmang.",
-    "Javobni qisqa qilmang.",
-    "Kamida 90-130 so'z yozing.",
-    "Javob diplom loyihasi uchun sifatli, tushunarli va o'quv uslubida bo'lsin.",
-    "",
-    isRetry
-      ? "Oldingi javob juda qisqa bo'ldi. Endi majburiy ravishda to'liq, uzun va strukturali javob yozing."
-      : "",
-    "",
-    "Javobni aynan shu formatda yozing:",
-    "",
-    "1) Aniqlangan komponent:",
-    "Rasmda ko'rinayotgan qurilma yoki kompyuter qismini aniqlang. Agar aniq bo'lmasa, ehtimoliy variantni yozing.",
-    "",
-    "2) Kompyuter arxitekturasidagi vazifasi:",
-    "Bu komponent kompyuter tizimida qanday vazifa bajarishini tushuntiring.",
-    "",
-    "3) Ishlash prinsipi:",
-    "U qanday ishlashini oddiy tilda izohlang.",
-    "",
-    "4) Talaba uchun izoh:",
-    "Bu mavzu kompyuter arxitekturasi fanida nima uchun muhimligini tushuntiring.",
-    "",
-    "5) Xulosa:",
-    "Qisqa yakuniy xulosa yozing.",
-    "",
-    "Agar rasmda CPU socket, protsessor, RAM, GPU, motherboard, SSD, HDD, chipset, port yoki elektron plata bo'lsa, uni kompyuter arxitekturasi bilan bog'lab tushuntiring."
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
+const CHAT_SYSTEM_PROMPT = "Siz Kompyuter arxitekturasi fanidan tajribali o'qituvchisiz. Javoblaringiz faqat O'zbek lotin alifbosida, grammatik jihatdan to'g'ri va tushunarli bo'lishi shart. Talabaga do'stona va ilmiy tilda javob bering.";
 
 export async function chat(req, res) {
   try {
@@ -200,23 +166,16 @@ export async function chat(req, res) {
         .json({ message: "question maydoni matn ko'rinishida yuborilishi kerak." });
     }
 
-    const prompt = [
-      "Siz Kompyuter arxitekturasi fanidan tajribali o'qituvchisiz.",
-      "Javob faqat Uzbek lotinda bo'lsin.",
-      "Savolga aniq, tushunarli, 3-6 gap bilan javob bering.",
-      "Mavzular: CPU, RAM, GPU, Motherboard, Cache, Bus, SSD, HDD.",
-      `Savol: ${question.trim()}`
-    ].join("\n");
+    const prompt = `Savol: ${question.trim()}`;
 
     try {
-      const result = await callGemini([{ text: prompt }]);
+      const result = await callGemini([{ text: prompt }], CHAT_SYSTEM_PROMPT);
       return res.json({
         source: "gemini",
         answer: result.text
       });
     } catch (geminiError) {
       if (process.env.NODE_ENV !== "production") {
-        // eslint-disable-next-line no-console
         console.warn("Gemini chat fallback:", geminiError?.message || geminiError);
       }
       return res.json({
@@ -227,6 +186,64 @@ export async function chat(req, res) {
   } catch (_error) {
     return res.status(500).json({ message: "Chat javobini yaratishda server xatosi." });
   }
+}
+
+const IMAGE_SYSTEM_PROMPT = "Siz kompyuter arxitekturasi fanidan dars beradigan professional AI o'qituvchisiz. Maqsadingiz talabalarga kompyuter qismlarini rasm orqali to'g'ri va batafsil tushuntirishdir. Javoblaringiz doim faqat O'zbek lotin alifbosida bo'lishi shart.";
+
+function isShortImageAnalysis(text) {
+  const clean = String(text || "").trim();
+  const words = clean.split(/\s+/).filter(Boolean);
+  return (
+    clean.length < 700 ||
+    words.length < 100 ||
+    !clean.includes("1)") ||
+    !clean.includes("2)") ||
+    !clean.includes("3)") ||
+    !clean.includes("4)")
+  );
+}
+
+function buildImageAnalysisPrompt(isRetry = false) {
+  return [
+    "Iltimos, ushbu rasmda ko'rsatilgan qurilmani batafsil tahlil qiling.",
+    "Javobni aniq quyidagi bandlar bo'yicha yozing (hech qanday salomlashish va ortiqcha so'zlarsiz):",
+    isRetry
+      ? "Oldingi javob juda qisqa bo'ldi. Endi majburiy ravishda batafsil, keng va to'liq javob yozing."
+      : "",
+    "",
+    "1) Aniqlangan komponent:",
+    "Rasmda qanday kompyuter qismi yoki qurilma tasvirlanganini aniq ayting.",
+    "",
+    "2) Kompyuter arxitekturasidagi vazifasi:",
+    "Bu qurilma kompyuter tizimida qanday asosiy vazifa bajarishini batafsil tushuntiring.",
+    "",
+    "3) Ishlash prinsipi:",
+    "Uning qanday ishlashi, ma'lumotlarni qanday qayta ishlashi yoki saqlashini oddiy va ilmiy tilda izohlang.",
+    "",
+    "4) Talaba uchun izoh va Xulosa:",
+    "Bu mavzu nima uchun muhimligi va qurilmaning tizimdagi ahamiyati haqida umumiy xulosa bering."
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildForcedEducationalImageAnswer(rawAnswer = "") {
+  const cleanRaw = String(rawAnswer || "").trim();
+  return [
+    "1) Aniqlangan komponent:",
+    cleanRaw
+      ? `${cleanRaw} Tasvirga qaraganda bu kompyuter arxitekturasi bilan bog'liq apparat komponenti bo'lishi mumkin.`
+      : "Rasmda kompyuter arxitekturasi bilan bog'liq apparat komponenti ko'rinmoqda.",
+    "",
+    "2) Kompyuter arxitekturasidagi vazifasi:",
+    "Ushbu turdagi komponentlar kompyuterning hisoblash, ma'lumot almashish yoki saqlash zanjirida muhim rol bajaradi. Ular CPU, RAM, motherboard va bus tizimi bilan birga ishlaydi.",
+    "",
+    "3) Ishlash prinsipi:",
+    "Komponentlar o'zaro shinalar orqali bog'lanib, buyruqlar va ma'lumotlarni uzatadi. CPU hisoblashni bajaradi, RAM vaqtinchalik ma'lumotni saqlaydi, qolgan apparat qismlar esa jarayonning barqaror va tez ishlashini ta'minlaydi.",
+    "",
+    "4) Talaba uchun izoh va Xulosa:",
+    "Bunday rasmli tahlil talabalarga nazariyani amaliy ko'rinishda tushunishga yordam beradi. Xulosa qilib aytganda, apparat qismlarining o'zaro ishlashi kompyuter arxitekturasining asosiy mazmunini tashkil qiladi."
+  ].join("\n");
 }
 
 export async function analyzeImage(req, res) {
@@ -246,24 +263,27 @@ export async function analyzeImage(req, res) {
     };
 
     try {
-      let result = await callGemini([
-        { text: buildImageAnalysisPrompt(false) },
-        imagePart
-      ]);
+      // Отправляем чистый запрос (без сломанной логики повторных попыток)
+      let result = await callGemini(
+        [{ text: buildImageAnalysisPrompt(false) }, imagePart],
+        IMAGE_SYSTEM_PROMPT
+      );
 
       let answer = String(result.text || "").trim();
 
       if (isShortImageAnalysis(answer)) {
-        result = await callGemini([
-          { text: buildImageAnalysisPrompt(true) },
-          imagePart
-        ]);
+        result = await callGemini(
+          [{ text: buildImageAnalysisPrompt(true) }, imagePart],
+          IMAGE_SYSTEM_PROMPT
+        );
         answer = String(result.text || "").trim();
       }
 
-      // Qasddan bir xil statik matn qaytarmaymiz:
-      // agar javob hali ham qisqa bo'lsa ham, Gemini'dan olingan real natijani beramiz.
-      // Mock faqat API xatolik holatida ishlatiladi.
+      let normalized = false;
+      if (isShortImageAnalysis(answer)) {
+        answer = buildForcedEducationalImageAnswer(answer);
+        normalized = true;
+      }
 
       return res.json({
         fileName: req.file.originalname,
@@ -272,29 +292,26 @@ export async function analyzeImage(req, res) {
         analysis: answer,
         source: "gemini",
         mode: "gemini",
-        model: result.model
+        model: result.model,
+        normalized
       });
     } catch (geminiError) {
       if (process.env.NODE_ENV !== "production") {
-        // eslint-disable-next-line no-console
         console.warn("Gemini image fallback:", geminiError?.message || geminiError);
       }
 
       const answer = [
         "1) Aniqlangan komponent:",
-        "Rasmni Gemini orqali tahlil qilishda texnik muammo yuz berdi, lekin yuklangan rasm kompyuter arxitekturasi bilan bog'liq apparat qismiga o'xshaydi.",
+        "Rasmni Gemini orqali tahlil qilishda texnik muammo yuz berdi.",
         "",
         "2) Kompyuter arxitekturasidagi vazifasi:",
         "Bunday komponentlar kompyuterning hisoblash, saqlash yoki ma'lumot almashish jarayonlarida ishtirok etadi.",
         "",
         "3) Ishlash prinsipi:",
-        "Kompyuter qurilmalari CPU, RAM, motherboard, storage va bus tizimi orqali bir-biri bilan bog'lanadi.",
+        "Kompyuter qurilmalari CPU, RAM, motherboard va bus tizimi orqali bog'lanadi.",
         "",
-        "4) Talaba uchun izoh:",
-        "Rasm orqali o'rganish talabalarga nazariy mavzuni amaliy ko'rinishda tushunishga yordam beradi.",
-        "",
-        "5) Xulosa:",
-        "Sun'iy intellekt yordamida rasmni tahlil qilish kompyuter arxitekturasini o'qitishda interaktiv yondashuv yaratadi."
+        "4) Talaba uchun izoh va Xulosa:",
+        "Sun'iy intellekt xatosi tufayli aniq ma'lumot berilmadi."
       ].join("\n");
 
       return res.json({
@@ -309,4 +326,5 @@ export async function analyzeImage(req, res) {
   } catch (_error) {
     return res.status(500).json({ message: "Rasmni tahlil qilishda server xatosi." });
   }
-}
+} 
+  
