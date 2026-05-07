@@ -45,7 +45,26 @@ export async function register(req, res) {
       message: "Ro'yxatdan o'tish muvaffaqiyatli.",
       user: sanitizeUser(user)
     });
-  } catch (_error) {
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("register error:", {
+      message: error?.message,
+      code: error?.code,
+      meta: error?.meta
+    });
+
+    if (error?.code === "P2021") {
+      return res.status(500).json({
+        message: "Database jadvali topilmadi. Prisma migratsiya/db push talab qilinadi."
+      });
+    }
+
+    if (error?.code === "P1001") {
+      return res.status(500).json({
+        message: "Database server bilan ulanishda muammo bor."
+      });
+    }
+
     return res.status(500).json({ message: "Ro'yxatdan o'tishda server xatosi." });
   }
 }
@@ -75,7 +94,14 @@ export async function login(req, res) {
       token,
       user: sanitizeUser(user)
     });
-  } catch (_error) {
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("login error:", {
+      message: error?.message,
+      code: error?.code,
+      meta: error?.meta
+    });
+
     return res.status(500).json({ message: "Kirishda server xatosi." });
   }
 }
@@ -91,7 +117,14 @@ export async function me(req, res) {
     }
 
     return res.json({ user: sanitizeUser(user) });
-  } catch (_error) {
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("me error:", {
+      message: error?.message,
+      code: error?.code,
+      meta: error?.meta
+    });
+
     return res.status(500).json({ message: "Foydalanuvchi ma'lumotini olishda xatolik." });
   }
 }
